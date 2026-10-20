@@ -1215,6 +1215,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
         width: 95px;
         height: 95px;
       }
+    
+      .hamaq-divider {
+        display: block;
+        width: 100%;
+        height: 0;
+        border-top: 2px solid #999;
+        margin: 12px 0 8px 0;
     }
   </style>
 </head>
@@ -1490,6 +1497,122 @@ svg.leaflet-image-layer.leaflet-interactive path {
       }
     ).addTo(map);
 
+    
+
+function organizeLayerMenu() {
+  const control = layerControl.getContainer();
+
+  const baseSection = control.querySelector(
+    ".leaflet-control-layers-base"
+  );
+
+  const overlaySection = control.querySelector(
+    ".leaflet-control-layers-overlays"
+  );
+
+  // Remove any previously added headings
+  control.querySelectorAll(".custom-layer-heading")
+    .forEach(heading => heading.remove());
+
+  // TEMPO heading
+  if (baseSection && baseSection.querySelector("label")) {
+    const tempoHeading = document.createElement("div");
+    tempoHeading.className = "custom-layer-heading";
+    tempoHeading.textContent = "TEMPO Overlays";
+    baseSection.prepend(tempoHeading);
+  }
+
+  if (!overlaySection) return;
+
+  // Identify the existing overlay checkboxes
+  const labels = Array.from(
+    overlaySection.querySelectorAll("label")
+  );
+
+  const pointSourceLabels = [];
+  const hamaqLabels = [];
+
+  labels.forEach(label => {
+    const name = label.textContent.trim().toLowerCase();
+
+  if (name.includes("gcas box") || name.includes("hamaq")) {
+  hamaqLabels.push(label);} 
+  else {
+  pointSourceLabels.push(label);}
+  });
+  
+
+  // Add Point Sources section
+  if (pointSourceLabels.length > 0) {
+    const pointHeading = document.createElement("div");
+    pointHeading.className = "custom-layer-heading";
+    pointHeading.textContent = "Point Sources";
+    overlaySection.appendChild(pointHeading);
+
+    pointSourceLabels.forEach(label => {
+      overlaySection.appendChild(label);
+    });
+  }
+
+  // Add HAMAQ section
+  if (hamaqLabels.length > 0) {
+    const divider = document.createElement("div");
+    divider.className = "hamaq-divider";
+    overlaySection.appendChild(divider);
+
+    const hamaqHeading = document.createElement("div");
+    hamaqHeading.className = "custom-layer-heading";
+    hamaqHeading.textContent = "HAMAQ Preparation and Instruments";
+    hamaqHeading.classList.add("hamaq-section-heading");
+
+    overlaySection.appendChild(hamaqHeading);
+
+    hamaqLabels.forEach(label => {
+        overlaySection.appendChild(label);
+
+    });
+    hamaqHeading.style.borderTop = "1px solid #ddd";
+    hamaqHeading.style.paddingTop = "10px";
+    hamaqHeading.style.marginTop = "10px";
+  };
+  
+}
+
+
+ // HAMAQ study area boundary
+    async function loadHamaqBoundary() {
+      const response = await fetch("HAMAQBOX.geojson");
+
+      if (!response.ok) {
+        throw new Error(
+          `HAMAQ boundary: HTTP ${response.status}`
+        );
+      }
+
+      const geojson = await response.json();
+
+      const hamaqLayer = L.geoJSON(geojson, {
+        style: {
+          color: "#312E81",
+          weight: 3,
+          opacity: 1,
+          fill: false
+        },
+        onEachFeature: function (feature, layer) {
+          layer.bindPopup(
+            "<strong>GCAS Box</strong>"
+          );
+        }
+      });
+
+      layerControl.addOverlay(hamaqLayer, "GCAS Box");
+
+      organizeLayerMenu();
+
+      hamaqLayer.addTo(map);
+
+    } // Closes loadHamaqBoundary()
+
     function layerMenuLabel(color, text) {
       return `
         <span class="layer-menu-label">
@@ -1503,40 +1626,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
       `;
     }
 
-    function ensureLayerControlHeadings() {
-      const container = layerControl.getContainer();
-      if (!container) return;
-
-      const baseList = container.querySelector(
-        ".leaflet-control-layers-base"
-      );
-      const overlayList = container.querySelector(
-        ".leaflet-control-layers-overlays"
-      );
-
-      if (
-        baseList &&
-        baseList.querySelector("label") &&
-        !baseList.querySelector(".layer-group-title")
-      ) {
-        const heading = document.createElement("div");
-        heading.className = "layer-group-title";
-        heading.innerHTML = "TEMPO NO<sub>2</sub> Columns";
-        baseList.prepend(heading);
-      }
-
-      if (
-        overlayList &&
-        overlayList.querySelector("label") &&
-        !overlayList.querySelector(".layer-group-title")
-      ) {
-        const heading = document.createElement("div");
-        heading.className = "layer-group-title";
-        heading.textContent = "NEI 2020 Point Sources";
-        overlayList.prepend(heading);
-
-      }
-    }
 
     function escapeHtml(value) {
       return String(value ?? "")
@@ -1648,7 +1737,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
           no2Layers.push(layer);
           no2LayerItems.push({ layer: layer, config: config });
           layerControl.addBaseLayer(layer, config.name);
-          ensureLayerControlHeadings();
+          organizeLayerMenu();
 
           if (firstSuccessfulLayer) {
             layer.addTo(map);
@@ -1808,7 +1897,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     )
   );
 
-  ensureLayerControlHeadings();
+  organizeLayerMenu();
 }
 
     const pieColors = [
@@ -1992,7 +2081,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         )
       );
 
-      ensureLayerControlHeadings();
+      organizeLayerMenu();
     }
 
     function findNo2AtLocation(latlng) {
@@ -2194,6 +2283,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     loadNoxLayers().catch(function (error) {
       reportError("NOx emission layer did not load: " + error.message);
+    });
+
+    loadHamaqBoundary().catch(function (error) {
+    reportError(
+    "HAMAQ boundary did not load: " + error.message);
     });
 
     loadHapLayer().catch(function (error) {
