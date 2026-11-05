@@ -6,7 +6,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Atlanta TEMPO NO₂ and NEI Emissions Map</title>
+  <title>Atlanta TEMPO NO₂ and NEI Emissions Map help</title>
 
   <style id="leaflet-css">
 /* required styles */
@@ -1466,12 +1466,18 @@ svg.leaflet-image-layer.leaflet-interactive path {
     ];
 
     const map = L.map("map", {
+
       center: [33.78, -84.39],
       zoom: 9,
       minZoom: 7,
       maxZoom: 19,
       renderer: L.canvas({ padding: 0.5 })
     });
+
+    map.createPane("gcasPane");
+    map.getPane("gcasPane").style.zIndex = 650;
+    map.createPane("pandoraPane");
+    map.getPane("pandoraPane").style.zIndex = 660;
 
     const openStreetMap = L.tileLayer(
       "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -1535,10 +1541,15 @@ function organizeLayerMenu() {
   labels.forEach(label => {
     const name = label.textContent.trim().toLowerCase();
 
-  if (name.includes("gcas box") || name.includes("hamaq")) {
-  hamaqLabels.push(label);} 
-  else {
-  pointSourceLabels.push(label);}
+  if (
+  name.includes("gcas box") ||
+  name.includes("hamaq") ||
+  name === "pandoras"
+) {
+  hamaqLabels.push(label);
+} else {
+  pointSourceLabels.push(label);
+}
   });
   
 
@@ -1592,6 +1603,7 @@ function organizeLayerMenu() {
       const geojson = await response.json();
 
       const hamaqLayer = L.geoJSON(geojson, {
+        pane: "gcasPane",
         style: {
           color: "#312E81",
           weight: 3,
@@ -1600,7 +1612,7 @@ function organizeLayerMenu() {
         },
         onEachFeature: function (feature, layer) {
           layer.bindPopup(
-            "<strong>GCAS Box</strong>"
+            "GCAS Box"
           );
         }
       });
@@ -1613,6 +1625,83 @@ function organizeLayerMenu() {
 
     } // Closes loadHamaqBoundary()
 
+    async function loadPandoras() {
+  try {
+    const response = await fetch("pandora view geos.geojson");
+
+    if (!response.ok) {
+      throw new Error("Could not load Pandoras GeoJSON");
+    }
+
+    const data = await response.json();
+
+    const pandorasLayer = L.geoJSON(data, {
+  pane: "pandoraPane",
+
+  style: function(feature) {
+  if (feature.geometry.type === "LineString") {
+    return {
+      color: "#FFC700",
+      weight: 3,
+      opacity: 1
+    };
+  }
+
+  return {
+    color: "#FFFFFF",
+    weight: 3,
+    opacity: 1,
+    fillColor: "#FFC700",
+    fillOpacity: 1
+  };
+},
+
+  pointToLayer: function(feature, latlng) {
+  return L.circleMarker(latlng, {
+    pane: "pandoraPane",
+    radius: 9,
+    color: "#FF00FF",      // Bright pink TEST outline
+    weight: 6,             // Very thick outline
+    opacity: 1,
+    fillColor: "#FFC700",
+    fillOpacity: 1
+  });
+},
+
+  onEachFeature: function(feature, layer) {
+  if (feature.geometry.type === "Point") {
+    const props = feature.properties || {};
+
+    const popupContent = `
+      <div style="min-width: 240px; max-width: 320px;">
+        <h3 style="margin: 0 0 8px 0;">
+          ${props.title || "Pandora Station"}
+        </h3>
+
+        <div style="white-space: pre-line; line-height: 1.5;">
+          ${props.description || "No description available."}
+        </div>
+      </div>
+    `;
+
+    layer.bindPopup(popupContent);
+  }
+},
+    });
+
+    // All four geometries share ONE checkbox
+    layerControl.addOverlay(pandorasLayer, "Pandoras");
+
+    // Display by default
+    pandorasLayer.addTo(map);
+
+    // Move checkbox into HAMAQ section
+    organizeLayerMenu();
+
+  } catch (error) {
+    console.error("Error loading Pandoras:", error);
+  }
+}
     function layerMenuLabel(color, text) {
       return `
         <span class="layer-menu-label">
@@ -2289,6 +2378,8 @@ function organizeLayerMenu() {
     reportError(
     "HAMAQ boundary did not load: " + error.message);
     });
+
+    loadPandoras();
 
     loadHapLayer().catch(function (error) {
       reportError("HAP emission layer did not load: " + error.message);
